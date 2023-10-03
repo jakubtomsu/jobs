@@ -1,5 +1,6 @@
 package fiberjob
 
+import "core:os"
 import "core:runtime"
 import "core:sys/windows"
 
@@ -59,7 +60,7 @@ _create_worker_thread :: proc(param: rawptr) -> Thread_Handle {
 
 _set_thread_affinity :: proc(handle: Thread_Handle, affinity: uint) {
 	if SetThreadAffinityMask(handle, affinity) == 0 {
-		panic("Failed to set thread affinity")
+		panic("Failed to set thread affinity.")
 	}
 }
 
@@ -81,4 +82,27 @@ _create_worker_fiber :: proc(stack_size: uint, arg: rawptr) -> Fiber_Handle {
 
 _switch_to_fiber :: proc(handle: Fiber_Handle) {
 	windows.SwitchToFiber(handle)
+}
+
+// Pseudo-handle!
+_get_current_thread :: proc() -> Thread_Handle {
+	return windows.GetCurrentThread()
+}
+
+_convert_current_thread_to_fiber :: proc() {
+	if windows.ConvertThreadToFiber(nil) == nil {
+		panic("Failed to convert current thread to fiber.")
+	}
+}
+
+_wait_for_threads_to_finish :: proc(threads: []Thread_Handle) {
+	if windows.WaitForMultipleObjects(
+		   windows.DWORD(len(threads)),
+		   &threads[0],
+		   true,
+		   windows.INFINITE,
+	   ) !=
+	   windows.WAIT_FAILED {
+		panic("Failed to wait for threads to finish.")
+	}
 }

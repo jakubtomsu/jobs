@@ -1,0 +1,5 @@
+*.exe
+*.lib
+*.pdb
+
+.vscode/

@@ -1,7 +1,8 @@
 package fiberjob
 
 Counter :: struct {
-    data: u16,
+    atomic_counter: u16,
+    waiting_jobs: ^Waiting_Job,
 }
 
 Job_Proc :: #type proc(arg: rawptr)
@@ -19,8 +20,12 @@ Priority :: enum u8 {
   HIGH,
 }
 
-_state: struct {
+Waiting_Job :: struct {
+    next_waiting_job: ^Waiting_Job,
+}
 
+_state: struct {
+    queues: [Priority]Job,
 }
 
 initialize :: proc(num_worker_threads := -1, set_thread_affinity := false) {
@@ -50,3 +55,5 @@ current_job_index :: proc() {
 current_thread_index :: proc() {
 
 }
+
+

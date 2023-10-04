@@ -29,6 +29,7 @@ SYSTEM_INFO :: struct {
 foreign kernel32 {
 	GetNativeSystemInfo :: proc(lpSystemInfo: ^SYSTEM_INFO) ---
 	SetThreadAffinityMask :: proc(hThread: windows.HANDLE, dwThreadAffinityMask: windows.DWORD_PTR) -> windows.DWORD_PTR ---
+	SetThreadDescription :: proc(hThread: windows.HANDLE, lpThreadDescription: windows.LPWSTR) -> windows.HRESULT ---
 }
 
 Thread_Handle :: windows.HANDLE
@@ -105,4 +106,8 @@ _wait_for_threads_to_finish :: proc(threads: []Thread_Handle) {
 	   windows.WAIT_FAILED {
 		panic("Failed to wait for threads to finish.")
 	}
+}
+
+_set_thread_name :: proc(thread: Thread_Handle, name: string) {
+
 }

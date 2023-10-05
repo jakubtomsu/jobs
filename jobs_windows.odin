@@ -1,4 +1,4 @@
-package fiberjob
+package jobs
 
 import "core:os"
 import "core:runtime"
@@ -29,7 +29,6 @@ SYSTEM_INFO :: struct {
 foreign kernel32 {
 	GetNativeSystemInfo :: proc(lpSystemInfo: ^SYSTEM_INFO) ---
 	SetThreadAffinityMask :: proc(hThread: windows.HANDLE, dwThreadAffinityMask: windows.DWORD_PTR) -> windows.DWORD_PTR ---
-	SetThreadDescription :: proc(hThread: windows.HANDLE, lpThreadDescription: windows.LPWSTR) -> windows.HRESULT ---
 }
 
 Thread_Handle :: windows.HANDLE
@@ -65,35 +64,9 @@ _set_thread_affinity :: proc(handle: Thread_Handle, affinity: uint) {
 	}
 }
 
-_create_worker_fiber :: proc(stack_size: uint, arg: rawptr) -> Fiber_Handle {
-	result := windows.CreateFiber(stack_size, _fiber_start_routine, arg)
-
-	if result == nil {
-		panic("Failed to create worker fiber.")
-	}
-
-	return result
-
-	_fiber_start_routine :: proc "stdcall" (arg: windows.LPVOID) {
-		// HACK
-		context = runtime.default_context()
-		run_worker_fiber(arg)
-	}
-}
-
-_switch_to_fiber :: proc(handle: Fiber_Handle) {
-	windows.SwitchToFiber(handle)
-}
-
 // Pseudo-handle!
 _get_current_thread :: proc() -> Thread_Handle {
 	return windows.GetCurrentThread()
-}
-
-_convert_current_thread_to_fiber :: proc() {
-	if windows.ConvertThreadToFiber(nil) == nil {
-		panic("Failed to convert current thread to fiber.")
-	}
 }
 
 _wait_for_threads_to_finish :: proc(threads: []Thread_Handle) {
@@ -102,12 +75,8 @@ _wait_for_threads_to_finish :: proc(threads: []Thread_Handle) {
 		   &threads[0],
 		   true,
 		   windows.INFINITE,
-	   ) !=
+	   ) ==
 	   windows.WAIT_FAILED {
 		panic("Failed to wait for threads to finish.")
 	}
-}
-
-_set_thread_name :: proc(thread: Thread_Handle, name: string) {
-
 }

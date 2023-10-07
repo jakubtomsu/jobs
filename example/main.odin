@@ -1,32 +1,51 @@
 package main
 
-import fj ".."
+import jobs ".."
 import "core:fmt"
+import "core:time"
+
 
 main :: proc() {
-	fmt.println("Hey")
+    jobs.initialize(
+        num_worker_threads = -1,
+        set_thread_affinity = true,
+        thread_init_proc = proc(_: rawptr) {fmt.println("Hello from thread", jobs.current_thread_index())},
+    )
 
-	fj.initialize(num_worker_threads = -1)
+    // sleep for a moment so all threads have time to init
+    time.sleep(time.Second)
 
-	fmt.println("Hey2")
+    {
+        fmt.println("\nSIMPLE\n")
 
-	for i in 0..<300 do fmt.print(".")
-	fmt.println()
+        g: jobs.Group
 
-	g: fj.Group
+        f: f32 = 1
+        a: int
+        for i in 0 ..< 10 {
+            jobs.run(
+                {
+                    jobs.make_job(&g, &f, proc(x: ^f32) {x^ = x^ * 2;fmt.println(x^)}),
+                    jobs.make_job(&g, &a, proc(a: rawptr) {fmt.println(a)}),
+                    jobs.make_job(&g, proc(_: rawptr) {fmt.println("Hey")}),
+                },
+            )
+        }
+        jobs.wait(&g)
+    }
 
-	f: f32 = 1
-	a: int
-	for i in 0..<10 do fj.run({
-		fj.make_job(&g, &f, proc(x: ^f32) {x ^= x^ * 2; fmt.println(x^)}),
-		fj.make_job(&g, &a, proc(a: rawptr) {fmt.println(a)}),
-		fj.make_job(&g, proc(rawptr) {fmt.println("Hey")})
-	}
-	)
+    {
+        fmt.println("\nBENCHMARK\n")
 
-	fj.wait(&g)
+        start := time.tick_now()
+        g: jobs.Group
 
-	fmt.println(fj.num_threads())
 
-	fj.shutdown()
+
+        fmt.println(time.tick_since(start))
+    }
+
+    fmt.println(jobs.num_threads())
+
+    jobs.shutdown()
 }

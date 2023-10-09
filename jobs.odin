@@ -227,7 +227,7 @@ default_thread_proc :: proc(_: rawptr) {
 }
 
 _run_queued_jobs :: proc() {
-    ORDERED_PRIORITIES :: [?]Priority{.High, .Medium, .Low}
+    ORDERED_PRIORITIES :: [len(Priority)]Priority{.High, .Medium, .Low}
 
     block: for priority in ORDERED_PRIORITIES {
         if _state.job_lists[priority].head == nil {

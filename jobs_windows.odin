@@ -49,7 +49,6 @@ _create_worker_thread :: proc(param: rawptr) -> Thread_Handle {
 
     return handle
 
-
     _thread_start_routine :: proc "stdcall" (param: windows.LPVOID) -> windows.DWORD {
         // HACK
         context = runtime.default_context()

@@ -4,7 +4,7 @@ A simple job system for Odin.
 ## Overview
 
 The design is inspired by fiber-based job systems, most notably the one used at Naughty Dog.
-(see [Parallelizing-the-Naughty-Dog-Engine](https://www.gdcvault.com/play/1022186/Parallelizing-the-Naughty-Dog-Engine)).
+(see [Parallelizing the Naughty Dog Engine](https://www.gdcvault.com/play/1022186/Parallelizing-the-Naughty-Dog-Engine)).
 
 Instead of using fibers, this job system just directly runs queued jobs
 on the waiting thread. From an API perspective, this is basically the same as fibers.

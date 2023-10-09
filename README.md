@@ -22,17 +22,6 @@ Also there is no chance of ending up on another thread after using `wait`, so yo
 - the jobs are queued on a linked list (FILO queue)
 - the individual jobs are allocated with `context.temp_allocator` (or manually)
 
-## Examples
-See the [examples](examples/) directory for all examples.
-
-All examples:
-- [hello](examples/hello) - a very basic introduction to jobs
-- [simple](examples/simple) - simple overview with most of the features
-- [boids](examples/boids) - boids simulation with Raylib
-
-![boids](misc/boids.png)
-![boids](misc/boids_spall.png)
-
 ## A simple hello world program
 ```odin
 main :: proc() {
@@ -50,6 +39,17 @@ hello_job :: proc(_: rawptr) {
 }
 
 ```
+
+## Examples
+See the [examples](examples/) directory for all examples.
+
+All examples:
+- [hello](examples/hello) - a very basic introduction to jobs
+- [simple](examples/simple) - simple overview with most of the features
+- [boids](examples/boids) - boids simulation with Raylib
+
+![boids](misc/boids.png)
+![boids](misc/boids_spall.png)
 
 ## Contributing
 All contributions are welcome!

@@ -2,4 +2,6 @@
 *.lib
 *.pdb
 
+*.spall
+
 .vscode/

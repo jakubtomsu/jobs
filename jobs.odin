@@ -1,9 +1,9 @@
 package jobs
 
 import "core:intrinsics"
-import "core:sync"
-import "core:math"
 import "core:log"
+import "core:math"
+import "core:sync"
 
 Group :: struct {
     atomic_counter: u64,
@@ -26,12 +26,12 @@ Priority :: enum u8 {
 }
 
 _state: struct {
-    running:             bool,
-    job_lists:           [Priority]Job_List,
-    threads:             []Thread_Handle,
-    thread_init_proc:    Thread_Init_Proc,
-    thread_init_arg:     rawptr,
-    thread_init_counter: int,
+    running:        bool,
+    job_lists:      [Priority]Job_List,
+    threads:        []Thread_Handle,
+    thread_proc:    Thread_Init_Proc,
+    thread_arg:     rawptr,
+    thread_counter: int,
 }
 
 Job_List :: struct {
@@ -42,6 +42,23 @@ Job_List :: struct {
 @(thread_local)
 _thread_state: struct {
     index: int,
+}
+
+
+num_threads :: proc() -> int {
+    return 1 + len(_state.threads)
+}
+
+current_thread_index :: proc() -> int {
+    return _thread_state.index
+}
+
+current_thread_id :: proc() -> u32 {
+    return _current_thread_id()
+}
+
+is_running :: proc() -> bool {
+    return _state.running
 }
 
 make_job_typed :: proc(group: ^Group, arg: ^$T, p: proc(arg: ^T)) -> Job {
@@ -69,8 +86,8 @@ make_job :: proc {
 }
 
 Batch :: struct($T: typeid) {
-    data:  []T,
-    index: i32,
+    data:   []T,
+    index:  i32,
     offset: i32,
 }
 
@@ -82,13 +99,18 @@ dispatch_batches :: proc(
     p: proc(batch: ^Batch(T)),
 ) {
     num_batches := num_batches
-    
+
     if num_batches <= 0 {
         num_batches = num_threads()
     }
 
-    dispatch_batches_fixed(group = group, data = data, batch_size = div_ceil(len(data), num_batches),
-        priority = priority, p = p)
+    dispatch_batches_fixed(
+        group = group,
+        data = data,
+        batch_size = div_ceil(len(data), num_batches),
+        priority = priority,
+        p = p,
+    )
 }
 
 // batch_size: max batch size
@@ -115,9 +137,9 @@ dispatch_batches_fixed :: proc(
     for &batch, i in batches {
         offset := i * batch_size
         batch = {
-            index = i32(i),
+            index  = i32(i),
             offset = i32(offset),
-            data  = data[offset : min(offset + batch_size, len(data) - 1)],
+            data   = data[offset:min(offset + batch_size, len(data))],
         }
     }
 
@@ -160,38 +182,28 @@ dispatch_jobs :: proc(priority: Priority, jobs: []Job) {
 
 wait :: proc(group: ^Group) {
     for intrinsics.atomic_load(&group.atomic_counter) > 0 {
-        _run_queued_job()
+        _run_queued_jobs()
     }
     group^ = {}
 }
 
-num_threads :: proc() -> int {
-    return 1 + len(_state.threads)
-}
-
-current_thread_index :: proc() -> int {
-    return _thread_state.index
-}
-
 @(private)
 run_worker_thread :: proc(arg: rawptr) {
-    _thread_state.index = intrinsics.atomic_add(&_state.thread_init_counter, 1)
+    _thread_state.index = intrinsics.atomic_add(&_state.thread_counter, 1)
 
-    if _state.thread_init_proc != nil {
-        _state.thread_init_proc(_state.thread_init_arg)
-    }
-
-    for _state.running {
-        _run_queued_job()
+    if _state.thread_proc != nil {
+        _state.thread_proc(_state.thread_arg)
     }
 }
 
-_run_queued_job :: proc() {
-    ORDERED_PRIORITIES :: [?]Priority{
-        .High,
-        .Medium,
-        .Low,
+default_thread_proc :: proc(_: rawptr) {
+    for _state.running {
+        _run_queued_jobs()
     }
+}
+
+_run_queued_jobs :: proc() {
+    ORDERED_PRIORITIES :: [?]Priority{.High, .Medium, .Low}
 
     block: for priority in ORDERED_PRIORITIES {
         if _state.job_lists[priority].head == nil {
@@ -199,6 +211,10 @@ _run_queued_job :: proc() {
         }
 
         for i in 0 ..< 4 {
+            if _state.job_lists[priority].head == nil {
+                continue
+            }
+
             if sync.atomic_mutex_try_lock(&_state.job_lists[priority].mutex) {
                 if job := _state.job_lists[priority].head; job != nil {
                     _state.job_lists[priority].head = job._next
@@ -220,18 +236,18 @@ _run_queued_job :: proc() {
 initialize :: proc(
     num_worker_threads := -1,
     set_thread_affinity := false,
-    thread_init_proc: proc(arg: rawptr) = nil,
-    thread_init_arg: rawptr = nil,
+    thread_proc := default_thread_proc,
+    thread_arg: rawptr = nil,
 ) {
     if set_thread_affinity {
-        _set_thread_affinity(_get_current_thread(), 1)
+        _set_thread_affinity(_current_thread(), 1)
     }
 
     _state = {
-        thread_init_proc    = thread_init_proc,
-        thread_init_arg     = thread_init_arg,
-        thread_init_counter = 1,
-        running             = true,
+        thread_proc    = thread_proc,
+        thread_arg     = thread_arg,
+        thread_counter = 1,
+        running        = true,
     }
 
     // Main thread TLS

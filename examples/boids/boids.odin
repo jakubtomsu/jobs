@@ -1,12 +1,13 @@
 package jobs_example_boids
 
-import rl "vendor:raylib"
-import "core:runtime"
-import "core:math/linalg"
+import common ".."
 import jobs "../.."
 import "core:fmt"
+import "core:math/linalg"
 import "core:math/rand"
+import "core:runtime"
 import "core:time"
+import rl "vendor:raylib"
 
 WINDOW_X :: CHUNKS_X * CHUNK_SIZE
 WINDOW_Y :: CHUNKS_Y * CHUNK_SIZE
@@ -20,10 +21,10 @@ Run_Mode :: enum {
 }
 
 Boid :: struct {
-    pos: [2]f32,
-    vel: [2]f32,
+    pos:   [2]f32,
+    vel:   [2]f32,
     force: [2]f32,
-    rad: f32,
+    rad:   f32,
 }
 
 CHUNK_MAX_BOIDS :: 64
@@ -34,7 +35,7 @@ CHUNKS_Y :: 24
 CHUNK_SIZE :: 30
 
 Chunk :: struct {
-    boids: [CHUNK_MAX_BOIDS]u32,
+    boids:     [CHUNK_MAX_BOIDS]u32,
     num_boids: u8,
 }
 
@@ -44,13 +45,13 @@ Profile_Section :: enum {
     Draw,
     Chunks_Pre_Update,
     Boids_Update,
-    Chunks_Update
+    Chunks_Update,
 }
 
 _state: struct {
-    run_mode: Run_Mode,
-    boids: [dynamic]Boid,
-    chunks: [CHUNKS_X][CHUNKS_Y]Chunk,
+    run_mode:         Run_Mode,
+    boids:            [dynamic]Boid,
+    chunks:           [CHUNKS_X][CHUNKS_Y]Chunk,
     profile_sections: [Profile_Section]time.Duration,
 }
 
@@ -58,20 +59,22 @@ chunk_is_in_bounds :: #force_inline proc(p: [2]int) -> bool {
     return p.x >= 0 && p.x < CHUNKS_X && p.y >= 0 && p.y < CHUNKS_Y
 }
 
-
 _end_section :: proc(section: Profile_Section, start: time.Tick) {
     _state.profile_sections[section] = time.tick_since(start)
+    common.profile_end()
 }
 
 @(deferred_in_out = _end_section)
 section :: proc(section: Profile_Section) -> time.Tick {
+    common.profile_begin(fmt.tprint(section))
     return time.tick_now()
 }
 
 main :: proc() {
     rl.InitWindow(WINDOW_X, WINDOW_Y, "Jobs example - Boids")
     jobs.initialize(set_thread_affinity = true)
-    
+    common._profiler_init()
+
     for !rl.WindowShouldClose() {
         section(.Frame)
 
@@ -89,11 +92,14 @@ main :: proc() {
             target := cast([2]f32)rl.GetMousePosition()
 
             if rl.IsMouseButtonPressed(.LEFT) {
-                for _ in 0..<1000 {
-                    append(&_state.boids, Boid{
-                        pos = target + {rand.float32_range(-100, 100), rand.float32_range(-100,100)},
-                        rad = 1,
-                    })
+                for _ in 0 ..< 1000 {
+                    append(
+                        &_state.boids,
+                        Boid{
+                            pos = target + {rand.float32_range(-100, 100), rand.float32_range(-100, 100)},
+                            rad = 1,
+                        },
+                    )
                 }
             }
 
@@ -101,8 +107,8 @@ main :: proc() {
             case .Singlethreaded:
                 {
                     section(.Chunks_Pre_Update)
-                    for x in 0..<CHUNKS_X {
-                        for y in 0..<CHUNKS_Y {
+                    for x in 0 ..< CHUNKS_X {
+                        for y in 0 ..< CHUNKS_Y {
                             chunk_pre_update(&_state.chunks[x][y])
                         }
                     }
@@ -115,8 +121,8 @@ main :: proc() {
 
                 {
                     section(.Chunks_Update)
-                    for x in 0..<CHUNKS_X {
-                        for y in 0..<CHUNKS_Y {
+                    for x in 0 ..< CHUNKS_X {
+                        for y in 0 ..< CHUNKS_Y {
                             chunk_update(&_state.chunks[x][y], {x, y}, delta)
                         }
                     }
@@ -131,6 +137,8 @@ main :: proc() {
                     job_arr := new([CHUNKS_X]jobs.Job, context.temp_allocator)
                     for &job, i in job_arr {
                         job = jobs.make_job(&g, &_state.chunks[i], proc(chunks: ^[CHUNKS_Y]Chunk) {
+                            common.profile_scope("Batch")
+
                             for &ch in chunks {
                                 chunk_pre_update(&ch)
                             }
@@ -138,16 +146,29 @@ main :: proc() {
                     }
 
                     jobs.dispatch_jobs(.High, job_arr[:])
-                
+
                     jobs.wait(&g)
                 }
 
                 {
                     section(.Boids_Update)
 
-                    jobs.dispatch_batches(&g, data = _state.boids[:], num_batches = -1, priority = .High, p = proc(b: ^jobs.Batch(Boid)) {
-                        boids_update(b.data, int(b.offset), cast([2]f32)rl.GetMousePosition(), rl.GetFrameTime())
-                    })
+                    jobs.dispatch_batches(
+                        &g,
+                        data = _state.boids[:],
+                        num_batches = -1,
+                        priority = .High,
+                        p = proc(b: ^jobs.Batch(Boid)) {
+                            common.profile_scope("Batch")
+
+                            boids_update(
+                                b.data,
+                                int(b.offset),
+                                cast([2]f32)rl.GetMousePosition(),
+                                rl.GetFrameTime(),
+                            )
+                        },
+                    )
 
                     jobs.wait(&g)
                 }
@@ -156,30 +177,32 @@ main :: proc() {
                     section(.Chunks_Update)
 
                     Job :: struct {
-                        job: jobs.Job,
+                        job:       jobs.Job,
                         chunk_pos: [2]u16,
                     }
                     job_arr := make_soa(#soa[]Job, CHUNKS_X * CHUNKS_Y, context.temp_allocator)
 
-                    for x in 0..<CHUNKS_X {
-                        for y in 0..<CHUNKS_Y {
+                    for x in 0 ..< CHUNKS_X {
+                        for y in 0 ..< CHUNKS_Y {
                             job := &job_arr[x + CHUNKS_X * y]
                             job^ = {
                                 chunk_pos = {u16(x), u16(y)},
                                 job = jobs.make_job(&g, &job.chunk_pos, proc(chunk_pos: ^[2]u16) {
+                                    common.profile_scope("Batch")
+
                                     chunk_update(
                                         &_state.chunks[chunk_pos.x][chunk_pos.y],
                                         {int(chunk_pos.x), int(chunk_pos.y)},
                                         rl.GetFrameTime(),
                                     )
-                                })
+                                }),
                             }
                         }
                     }
 
                     job_slice, _ := soa_unzip(job_arr)
                     jobs.dispatch_jobs(.High, job_slice)
-                
+
                     jobs.wait(&g)
                 }
             }
@@ -193,8 +216,8 @@ main :: proc() {
             rl.BeginDrawing()
             rl.ClearBackground(rl.BLACK)
 
-            for x in 0..<CHUNKS_X {
-                for y in 0..<CHUNKS_Y {
+            for x in 0 ..< CHUNKS_X {
+                for y in 0 ..< CHUNKS_Y {
                     num := _state.chunks[x][y].num_boids
                     if num > 0 {
                         col: rl.Color = num > (CHUNK_MAX_BOIDS * 0.5) ? rl.ORANGE : {255, 150, 0, 40}
@@ -204,11 +227,11 @@ main :: proc() {
                 }
             }
 
-            for x in 1..<CHUNKS_X {
+            for x in 1 ..< CHUNKS_X {
                 rl.DrawLineV({f32(x) * CHUNK_SIZE, 0}, {f32(x) * CHUNK_SIZE, WINDOW_Y}, {255, 255, 255, 50})
             }
 
-            for y in 1..<CHUNKS_Y {
+            for y in 1 ..< CHUNKS_Y {
                 rl.DrawLineV({0, f32(y) * CHUNK_SIZE}, {WINDOW_X, f32(y) * CHUNK_SIZE}, {255, 255, 255, 50})
             }
 
@@ -219,16 +242,28 @@ main :: proc() {
             rl.DrawFPS(2, 2)
 
             rl.DrawText(fmt.ctprintf("Num boids: %i", len(_state.boids)), 2, 22, 20, rl.ORANGE)
-            rl.DrawText(fmt.ctprintf("Run mode: %v", _state.run_mode), 2, 44, 20, rl.ORANGE)
+            rl.DrawText(fmt.ctprintf("Run mode: %v", _state.run_mode), 2, 44, 20, rl.RED)
+            rl.DrawText(fmt.ctprintf("Num threads: %i", jobs.num_threads()), 2, 66, 20, rl.RED)
 
             for sec, i in Profile_Section {
-                rl.DrawText(fmt.ctprintf("%v: %-7.i ms", sec, int(time.duration_milliseconds(_state.profile_sections[sec]))), 2, 66 + 22 * i32(i), 20, rl.YELLOW)
+                rl.DrawText(
+                    fmt.ctprintf(
+                        "%v: %-4.3f ms",
+                        sec,
+                        f32(time.duration_milliseconds(_state.profile_sections[sec])),
+                    ),
+                    2,
+                    88 + 22 * i32(i),
+                    20,
+                    rl.GRAY,
+                )
             }
 
             rl.EndDrawing()
         }
     }
 
+    common._profiler_shutdown()
     jobs.shutdown()
     rl.CloseWindow()
 }
@@ -247,10 +282,7 @@ boids_update :: proc(boids: []Boid, offset: int, target: [2]f32, delta: f32) {
 
         b.pos += b.vel * delta
 
-        chunk_pos: [2]int = {
-            int(b.pos.x / CHUNK_SIZE),
-            int(b.pos.y / CHUNK_SIZE),
-        }
+        chunk_pos: [2]int = {int(b.pos.x / CHUNK_SIZE), int(b.pos.y / CHUNK_SIZE)}
 
         if !chunk_is_in_bounds(chunk_pos) {
             continue
@@ -269,8 +301,8 @@ chunk_update :: proc(chunk: ^Chunk, chunk_pos: [2]int, delta: f32) {
     for boid_index in boids {
         boid := &_state.boids[boid_index]
 
-        for nx in -1..<1 {
-            for ny in -1..<1 {
+        for nx in -1 ..< 1 {
+            for ny in -1 ..< 1 {
                 n_pos: [2]int = {chunk_pos.x + nx, chunk_pos.y + ny}
 
                 if !chunk_is_in_bounds(n_pos) {
@@ -283,7 +315,7 @@ chunk_update :: proc(chunk: ^Chunk, chunk_pos: [2]int, delta: f32) {
                     n_boid := _state.boids[n_boid_index]
 
                     MAX_DIST :: CHUNK_SIZE
-                    
+
                     dist := linalg.length(boid.pos - n_boid.pos)
 
                     if dist < 0.05 || dist > MAX_DIST {

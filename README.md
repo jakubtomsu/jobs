@@ -53,7 +53,7 @@ All examples:
 
 ## TODO
 - improve the examples (boids are especially wonky)
-- use atomic linked list instead of using spinlocks
+- use atomic linked list instead of spinlocks
 
 ## Contributing
 All contributions are welcome!

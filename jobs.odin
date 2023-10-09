@@ -30,7 +30,7 @@ Group :: struct {
 }
 
 Job_Proc :: #type proc(arg: rawptr)
-Thread_Init_Proc :: #type proc(arg: rawptr)
+Thread_Proc :: #type proc(arg: rawptr)
 
 Job :: struct {
     procedure: Job_Proc,
@@ -49,7 +49,7 @@ _state: struct {
     running:        bool,
     job_lists:      [Priority]Job_List,
     threads:        []Thread_Handle,
-    thread_proc:    Thread_Init_Proc,
+    thread_proc:    Thread_Proc,
     thread_arg:     rawptr,
     thread_counter: int,
 }

@@ -51,5 +51,9 @@ All examples:
 ![boids](misc/boids.png)
 ![boids](misc/boids_spall.png)
 
+## TODO
+- improve the examples (boids are especially wonky)
+- use atomic linked list instead of using spinlocks
+
 ## Contributing
 All contributions are welcome!

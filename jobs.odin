@@ -2,6 +2,8 @@ package jobs
 
 import "core:intrinsics"
 import "core:sync"
+import "core:math"
+import "core:log"
 
 Group :: struct {
     atomic_counter: u64,
@@ -18,9 +20,9 @@ Job :: struct {
 }
 
 Priority :: enum u8 {
-    MEDIUM = 0,
-    LOW,
-    HIGH,
+    Medium = 0,
+    Low,
+    High,
 }
 
 _state: struct {
@@ -42,22 +44,22 @@ _thread_state: struct {
     index: int,
 }
 
-make_job_typed :: proc(Group: ^Group, arg: ^$T, p: proc(arg: ^T)) -> Job {
-    assert(Group != nil)
+make_job_typed :: proc(group: ^Group, arg: ^$T, p: proc(arg: ^T)) -> Job {
+    assert(group != nil)
     assert(p != nil)
-    return {procedure = cast(proc(a: rawptr))p, arg = rawptr(arg), group = Group}
+    return {procedure = cast(proc(a: rawptr))p, arg = rawptr(arg), group = group}
 }
 
-make_job_raw :: proc(Group: ^Group, arg: rawptr, p: proc(arg: rawptr)) -> Job {
-    assert(Group != nil)
+make_job_raw :: proc(group: ^Group, arg: rawptr, p: proc(arg: rawptr)) -> Job {
+    assert(group != nil)
     assert(p != nil)
-    return {procedure = p, arg = arg, group = Group}
+    return {procedure = p, arg = arg, group = group}
 }
 
-make_job_noarg :: proc(Group: ^Group, p: proc(arg: rawptr)) -> Job {
-    assert(Group != nil)
+make_job_noarg :: proc(group: ^Group, p: proc(arg: rawptr)) -> Job {
+    assert(group != nil)
     assert(p != nil)
-    return {procedure = p, group = Group}
+    return {procedure = p, group = group}
 }
 
 make_job :: proc {
@@ -68,53 +70,80 @@ make_job :: proc {
 
 Batch :: struct($T: typeid) {
     data:  []T,
-    index: int,
+    index: i32,
+    offset: i32,
 }
 
-process_batched :: proc(
+dispatch_batches :: proc(
     group: ^Group,
     data: []$T,
     num_batches := 0,
-    p: proc(batch: ^[]T),
-    priority: Priority = .MEDIUM,
+    priority: Priority = .Medium,
+    p: proc(batch: ^Batch(T)),
 ) {
+    num_batches := num_batches
+    
     if num_batches <= 0 {
         num_batches = num_threads()
     }
 
-    jobs := make([]Job, context.temp_allocator)
-    batches := make([]Batch(T), context.temp_allocator)
+    dispatch_batches_fixed(group = group, data = data, batch_size = div_ceil(len(data), num_batches),
+        priority = priority, p = p)
+}
 
-    batch_size := max(1, len(data) / num_batches)
+// batch_size: max batch size
+dispatch_batches_fixed :: proc(
+    group: ^Group,
+    data: []$T,
+    batch_size := 1,
+    priority: Priority = .Medium,
+    p: proc(batch: ^Batch(T)),
+) {
+    assert(p != nil)
+    assert(batch_size > 0)
+    assert(group != nil)
+
+    if data == nil {
+        return // nothing to process
+    }
+
+    num_batches := div_ceil(len(data), batch_size)
+
+    jobs := make_slice([]Job, num_batches, context.temp_allocator)
+    batches := make_slice([]Batch(T), num_batches, context.temp_allocator)
 
     for &batch, i in batches {
-        start_index := i * batch_size
-        end_index := start_index + batch_size
-        if i >= len(batches) - 1 {
-            end_index = len(batches) - 1
-        }
+        offset := i * batch_size
         batch = {
-            index = i,
-            data  = data[start_index, end_index],
+            index = i32(i),
+            offset = i32(offset),
+            data  = data[offset : min(offset + batch_size, len(data) - 1)],
         }
     }
 
     for &job, i in jobs {
         job = {
-            procedure = p,
+            procedure = Job_Proc(p),
             group     = group,
             arg       = &batches[i],
         }
     }
+
+    dispatch_jobs(priority, jobs)
 }
 
-run :: proc(jobs: []Job, priority: Priority = .MEDIUM) {
+@(private)
+div_ceil :: proc(a, b: int) -> int {
+    return (a + b - 1) / b
+}
+
+dispatch :: proc(priority: Priority = .Medium, jobs: ..Job) {
     _jobs := make([]Job, len(jobs), context.temp_allocator)
     copy(_jobs, jobs)
-    run_jobs(_jobs, priority)
+    dispatch_jobs(priority, _jobs)
 }
 
-run_jobs :: proc(jobs: []Job, priority: Priority) {
+dispatch_jobs :: proc(priority: Priority, jobs: []Job) {
     for &job, i in jobs {
         assert(job.group != nil)
         intrinsics.atomic_add(&job.group.atomic_counter, 1)
@@ -133,6 +162,7 @@ wait :: proc(group: ^Group) {
     for intrinsics.atomic_load(&group.atomic_counter) > 0 {
         _run_queued_job()
     }
+    group^ = {}
 }
 
 num_threads :: proc() -> int {
@@ -157,7 +187,13 @@ run_worker_thread :: proc(arg: rawptr) {
 }
 
 _run_queued_job :: proc() {
-    block: for priority in Priority {
+    ORDERED_PRIORITIES :: [?]Priority{
+        .High,
+        .Medium,
+        .Low,
+    }
+
+    block: for priority in ORDERED_PRIORITIES {
         if _state.job_lists[priority].head == nil {
             continue
         }

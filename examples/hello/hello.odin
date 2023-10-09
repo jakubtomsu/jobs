@@ -14,7 +14,7 @@ main :: proc() {
     // A job group allows you to wait for some jobs to finish.
     g: jobs.Group
 
-    // Dispatch adds the job to a queue for the given priority, and once it's 
+    // Dispatch adds the job to a queue for the given priority
     jobs.dispatch(.Medium, jobs.make_job(&g, hello_job))
 
     // Wait for the job to finish. This blocks the current thread and

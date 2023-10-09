@@ -100,6 +100,10 @@ dispatch_batches :: proc(
 ) {
     num_batches := num_batches
 
+    if len(data) <= 0 {
+        return
+    }
+
     if num_batches <= 0 {
         num_batches = num_threads()
     }
@@ -125,7 +129,7 @@ dispatch_batches_fixed :: proc(
     assert(batch_size > 0)
     assert(group != nil)
 
-    if data == nil {
+    if len(data) <= 0 {
         return // nothing to process
     }
 

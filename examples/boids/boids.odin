@@ -12,8 +12,8 @@ import rl "vendor:raylib"
 WINDOW_X :: CHUNKS_X * CHUNK_SIZE
 WINDOW_Y :: CHUNKS_Y * CHUNK_SIZE
 
-SEPARATION :: 0.2
-ALIGNMENT :: 0.05
+SEPARATION :: 500
+ALIGNMENT :: 5
 
 Run_Mode :: enum {
     Singlethreaded,
@@ -71,7 +71,7 @@ section :: proc(section: Profile_Section) -> time.Tick {
 }
 
 main :: proc() {
-    rl.InitWindow(WINDOW_X, WINDOW_Y, "Jobs example - Boids")
+    rl.InitWindow(WINDOW_X, WINDOW_Y, "Boids - press X to change run mode")
     jobs.initialize(set_thread_affinity = true)
     common._profiler_init()
 
@@ -329,7 +329,7 @@ chunk_update :: proc(chunk: ^Chunk, chunk_pos: [2]int, delta: f32) {
                     force += linalg.normalize(boid.pos - n_boid.pos) * dist * SEPARATION
                     force += boid.vel * dist * ALIGNMENT
 
-                    boid.force += force
+                    boid.force += force * delta
                 }
             }
         }

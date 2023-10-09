@@ -44,9 +44,9 @@ hello_job :: proc(_: rawptr) {
 See the [examples](examples/) directory for all examples.
 
 All examples:
-- [hello](examples/hello) - a very basic introduction to jobs
-- [simple](examples/simple) - simple overview with most of the features
-- [boids](examples/boids) - boids simulation with Raylib
+- [hello](examples/hello/hello.odin) - a very basic introduction to jobs
+- [simple](examples/simple/simple.odin) - simple overview with most of the features
+- [boids](examples/boids/boids.odin) - boids simulation with Raylib
 
 ![boids](misc/boids.png)
 ![boids](misc/boids_spall.png)

@@ -296,6 +296,7 @@ boids_update :: proc(boids: []Boid, offset: int, target: [2]f32, delta: f32) {
     }
 }
 
+// Probably way slower than it could be!!
 chunk_update :: proc(chunk: ^Chunk, chunk_pos: [2]int, delta: f32) {
     boids := chunk.boids[:chunk.num_boids]
     for boid_index in boids {

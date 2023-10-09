@@ -1,4 +1,4 @@
-package game
+package jobs_examples
 
 import jobs ".."
 

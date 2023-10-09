@@ -1,3 +1,23 @@
+// Jobs
+// A simple job system for Odin.
+//
+// The design is inspired by fiber-based job systems, most notably the one used at Naughty Dog
+// (see https://www.gdcvault.com/play/1022186/Parallelizing-the-Naughty-Dog-Engine)
+//
+// Instead of using fibers, this job system just directly runs queued job
+// in the waiting thread. From an API perspective, this is the same as fibers.
+// It might require more stack space in your worker threads, but there is no
+// need to allocate stacks for fibers.
+//
+// Features:
+// - dispatching and waiting for jobs to finish
+// - nested jobs
+// - utilities for batch processing of slices/arrays
+// - full control over the thread processing loop
+//
+// Notes:
+// - the jobs are queued on a linked list (FILO queue)
+// - the individual jobs are allocated with context.temp_allocator (or manually allocated)
 package jobs
 
 import "core:intrinsics"

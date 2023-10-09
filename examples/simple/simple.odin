@@ -7,7 +7,6 @@ import "core:math/rand"
 import "core:time"
 
 main :: proc() {
-
     jobs.initialize(num_worker_threads = -1, set_thread_affinity = false, thread_proc = proc(_: rawptr) {
             fmt.println("Hello from thread", jobs.current_thread_index())
             for jobs.is_running() {

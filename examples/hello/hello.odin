@@ -63,3 +63,19 @@ many_hello_job :: proc(arg: ^Many_Hello_Args) {
 
     fmt.println("Done!")
 }
+
+// The program prints something like this:
+//
+// Hello from thread 3
+// Many hellos:
+// Hello from thread 0
+// Hello from thread 0
+// Hello from thread 0
+// Hello from thread 5
+// Hello from thread 6
+// Hello from thread 7
+// Hello from thread 2
+// Hello from thread 1
+// Hello from thread 3
+// Hello from thread 4
+// Done!

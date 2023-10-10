@@ -211,8 +211,8 @@ dispatch_jobs :: proc(priority: Priority, jobs: []Job) {
 // Block the current thread until all jobs in the group are finished.
 // Other queued jobs are executed while waiting.
 wait :: proc(group: ^Group) {
-    for group_is_finished(group) > 0 {
-        _run_queued_jobs(1)
+    for !group_is_finished(group) {
+        _run_queued_jobs()
     }
     group^ = {}
 }

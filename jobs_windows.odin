@@ -40,8 +40,15 @@ _get_num_hardware_threads :: proc() -> int {
     return int(info.dwNumberOfProcessors)
 }
 
-_create_worker_thread :: proc(param: rawptr, suspended := false) -> Thread_Handle {
-    handle := windows.CreateThread(nil, 0, _thread_start_routine, param, suspended ? windows.CREATE_SUSPENDED : 0, nil)
+_create_worker_thread :: proc(param: rawptr, suspended: bool) -> Thread_Handle {
+    handle := windows.CreateThread(
+        nil,
+        0,
+        _thread_start_routine,
+        param,
+        suspended ? windows.CREATE_SUSPENDED : 0,
+        nil,
+    )
 
     if handle == nil {
         panic("Failed to create thread.")

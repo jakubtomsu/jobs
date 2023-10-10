@@ -12,8 +12,8 @@ import rl "vendor:raylib"
 WINDOW_X :: CHUNKS_X * CHUNK_SIZE
 WINDOW_Y :: CHUNKS_Y * CHUNK_SIZE
 
-SEPARATION :: 500
-ALIGNMENT :: 5
+SEPARATION :: 200
+ALIGNMENT :: 10
 
 Run_Mode :: enum {
     Singlethreaded,

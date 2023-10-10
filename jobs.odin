@@ -275,6 +275,7 @@ initialize :: proc(
     set_thread_affinity := false,
     thread_proc := default_thread_proc,
     thread_arg: rawptr = nil,
+    create_suspended_threads := false,
 ) {
     if set_thread_affinity {
         _set_thread_affinity(_current_thread(), 1)
@@ -301,7 +302,7 @@ initialize :: proc(
             _state.threads = make([]Thread_Handle, num_threads)
 
             for i in 0 ..< num_threads {
-                thread := _create_worker_thread(nil)
+                thread := _create_worker_thread(nil, create_suspended_threads)
                 _state.threads[i] = thread
 
                 if set_thread_affinity {

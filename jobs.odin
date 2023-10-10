@@ -212,7 +212,7 @@ dispatch_jobs :: proc(priority: Priority, jobs: []Job) {
 // Other queued jobs are executed while waiting.
 wait :: proc(group: ^Group) {
     for group_is_finished(group) > 0 {
-        _run_queued_jobs()
+        _run_queued_jobs(1)
     }
     group^ = {}
 }
@@ -234,11 +234,13 @@ run_worker_thread :: proc(arg: rawptr) {
 
 default_thread_proc :: proc(_: rawptr) {
     for _state.running {
-        _run_queued_jobs()
+        if !_run_queued_jobs() {
+            intrinsics.cpu_relax()
+        }
     }
 }
 
-_run_queued_jobs :: proc() {
+_run_queued_jobs :: proc() -> (result: bool) {
     ORDERED_PRIORITIES :: [len(Priority)]Priority{.High, .Medium, .Low}
 
     block: for priority in ORDERED_PRIORITIES {
@@ -246,27 +248,24 @@ _run_queued_jobs :: proc() {
             continue
         }
 
-        for i in 0 ..< 4 {
-            if _state.job_lists[priority].head == nil {
-                continue
-            }
-
-            if sync.atomic_mutex_try_lock(&_state.job_lists[priority].mutex) {
-                if job := _state.job_lists[priority].head; job != nil {
-                    _state.job_lists[priority].head = job._next
-                    sync.atomic_mutex_unlock(&_state.job_lists[priority].mutex)
-
-                    assert(job.group != nil)
-                    assert(job.procedure != nil)
-
-                    job.procedure(job.arg)
-                    intrinsics.atomic_sub(&job.group.atomic_counter, 1)
-                    break block
-                }
+        if sync.atomic_mutex_try_lock(&_state.job_lists[priority].mutex) {
+            if job := _state.job_lists[priority].head; job != nil {
+                _state.job_lists[priority].head = job._next
                 sync.atomic_mutex_unlock(&_state.job_lists[priority].mutex)
+
+                assert(job.group != nil)
+                assert(job.procedure != nil)
+
+                job.procedure(job.arg)
+                intrinsics.atomic_sub(&job.group.atomic_counter, 1)
+                result = true
+                break block
             }
+            sync.atomic_mutex_unlock(&_state.job_lists[priority].mutex)
         }
     }
+
+    return
 }
 
 // Spawns all threads.

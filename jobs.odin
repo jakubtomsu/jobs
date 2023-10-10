@@ -4,6 +4,7 @@
 // The design is inspired by fiber-based job systems, most notably the one used at Naughty Dog
 // (see https://www.gdcvault.com/play/1022186/Parallelizing-the-Naughty-Dog-Engine)
 //
+// BUT! This job system doesn't use any fibers at all.
 // Instead of using fibers, this job system just directly runs queued job
 // in the waiting thread. From an API perspective, this is the same as fibers.
 // It might require more stack space in your worker threads, but there is no
@@ -111,6 +112,7 @@ Batch :: struct($T: typeid) {
     offset: i32,
 }
 
+// Process slice in a fixed number of batches.
 dispatch_batches :: proc(
     group: ^Group,
     data: []$T,
@@ -137,7 +139,8 @@ dispatch_batches :: proc(
     )
 }
 
-// batch_size: max batch size
+// Process slice in batches of fixed size.
+// Note: batch_size is the _maximum_ batch size.
 dispatch_batches_fixed :: proc(
     group: ^Group,
     data: []$T,
@@ -189,6 +192,7 @@ dispatch :: proc(priority: Priority = .Medium, jobs: ..Job) {
     dispatch_jobs(priority, _jobs)
 }
 
+// Push jobs to the queue for the given priority.
 dispatch_jobs :: proc(priority: Priority, jobs: []Job) {
     for &job, i in jobs {
         assert(job.group != nil)
@@ -204,11 +208,19 @@ dispatch_jobs :: proc(priority: Priority, jobs: []Job) {
     sync.atomic_mutex_unlock(&_state.job_lists[priority].mutex)
 }
 
+// Block the current thread until all jobs in the group are finished.
+// Other queued jobs are executed while waiting.
 wait :: proc(group: ^Group) {
-    for intrinsics.atomic_load(&group.atomic_counter) > 0 {
+    for group_is_finished(group) > 0 {
         _run_queued_jobs()
     }
     group^ = {}
+}
+
+// Check if all jobs in the group are finished.
+@(require_results)
+group_is_finished :: #force_inline proc(group: ^Group) -> bool {
+    return intrinsics.atomic_load(&group.atomic_counter) <= 0
 }
 
 @(private)
@@ -257,6 +269,7 @@ _run_queued_jobs :: proc() {
     }
 }
 
+// Spawns all threads.
 initialize :: proc(
     num_worker_threads := -1,
     set_thread_affinity := false,
@@ -299,6 +312,7 @@ initialize :: proc(
     }
 }
 
+// Stop all threads and wait for them to finish.
 shutdown :: proc() {
     _state.running = false
     if len(_state.threads) > 0 {

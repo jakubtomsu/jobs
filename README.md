@@ -6,11 +6,12 @@ A simple job system for Odin.
 The design is inspired by fiber-based job systems, most notably the one used at Naughty Dog.
 (see [Parallelizing the Naughty Dog Engine](https://www.gdcvault.com/play/1022186/Parallelizing-the-Naughty-Dog-Engine)).
 
-Instead of using fibers, this job system just directly runs queued jobs
-on the waiting thread. From an API perspective, this is basically the same as fibers.
+BUT This scheduler doesn't use fibers! The queued jobs are just executed directly on the waiting thread.
+From an API perspective, this is basically the same as fibers.
 It might require more stack space in your worker threads, but there is no need to allocate stacks for fibers.
 
-Also there is no chance of ending up on another thread after using `wait`, so you can use TLS.
+Also there is no chance of ending up on another thread after using `wait`, so you can use TLS
+and OS-provided synchronization primitives like Mutexes and Semaphores.
 
 ### Features:
 - dispatching and waiting for jobs to finish

@@ -25,6 +25,7 @@ import "core:intrinsics"
 import "core:log"
 import "core:math"
 import "core:sync"
+import "core:mem"
 
 Group :: struct {
     atomic_counter: u64,
@@ -53,6 +54,7 @@ _state: struct {
     thread_proc:    Thread_Proc,
     thread_arg:     rawptr,
     thread_counter: int,
+	allocator:      ^mem.Allocator,
 }
 
 Job_List :: struct {
@@ -158,8 +160,8 @@ dispatch_batches_fixed :: proc(
 
     num_batches := div_ceil(len(data), batch_size)
 
-    jobs := make_slice([]Job, num_batches, context.temp_allocator)
-    batches := make_slice([]Batch(T), num_batches, context.temp_allocator)
+    jobs := make_slice([]Job, num_batches, _state.allocator)
+    batches := make_slice([]Batch(T), num_batches, _state.allocator)
 
     for &batch, i in batches {
         offset := i * batch_size
@@ -187,7 +189,7 @@ div_ceil :: proc(a, b: int) -> int {
 }
 
 dispatch :: proc(priority: Priority = .Medium, jobs: ..Job) {
-    _jobs := make([]Job, len(jobs), context.temp_allocator)
+    _jobs := make([]Job, len(jobs), _state.allocator^)
     copy(_jobs, jobs)
     dispatch_jobs(priority, _jobs)
 }
@@ -275,6 +277,7 @@ initialize :: proc(
     thread_proc := default_thread_proc,
     thread_arg: rawptr = nil,
     create_suspended_threads := false,
+	allocator_param : ^mem.Allocator,
 ) {
     if set_thread_affinity {
         _set_thread_affinity(_current_thread(), 1)
@@ -285,6 +288,7 @@ initialize :: proc(
         thread_arg     = thread_arg,
         thread_counter = 1,
         running        = true,
+		allocator = allocator_param,
     }
 
     // Main thread TLS

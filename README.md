@@ -21,7 +21,8 @@ and OS-provided synchronization primitives like Mutexes and Semaphores.
 
 ### Notes:
 - the jobs are queued on a linked list (FILO queue)
-- the individual jobs are allocated with `context.temp_allocator` (or manually)
+- individual jobs are allocated with `context.temp_allocator` (or manually)
+- all jobs have to finish the frame you start them (and before calling `free_all(context.temp_allocator`)!
 
 ## A simple hello world program
 ```odin

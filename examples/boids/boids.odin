@@ -72,7 +72,7 @@ section :: proc(section: Profile_Section) -> time.Tick {
 
 main :: proc() {
     rl.InitWindow(WINDOW_X, WINDOW_Y, "Boids - press X to change run mode")
-    jobs.initialize(set_thread_affinity = true)
+    jobs.initialize()
     common._profiler_init()
 
     for !rl.WindowShouldClose() {

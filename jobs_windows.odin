@@ -40,6 +40,7 @@ _get_num_hardware_threads :: proc() -> int {
     return int(info.dwNumberOfProcessors)
 }
 
+
 _create_worker_thread :: proc(param: rawptr, suspended: bool) -> Thread_Handle {
     handle := windows.CreateThread(
         nil,
@@ -66,12 +67,6 @@ _create_worker_thread :: proc(param: rawptr, suspended: bool) -> Thread_Handle {
 
 _resume_thread :: proc(handle: Thread_Handle) {
     windows.ResumeThread(handle)
-}
-
-_set_thread_affinity :: proc(handle: Thread_Handle, affinity: uint) {
-    if SetThreadAffinityMask(handle, affinity) == 0 {
-        panic("Failed to set thread affinity.")
-    }
 }
 
 // Pseudo-handle!

@@ -24,21 +24,28 @@ package jobs
 import "core:intrinsics"
 import "core:log"
 import "core:math"
+import "core:runtime"
 import "core:sync"
 
-Group :: struct {
-    atomic_counter: u64,
-}
+MAIN_THREAD_INDEX :: 0
 
 Job_Proc :: #type proc(arg: rawptr)
 Thread_Proc :: #type proc(arg: rawptr)
 
-Job :: struct {
-    procedure: Job_Proc,
-    arg:       rawptr,
-    group:     ^Group,
-    _next:     ^Job,
+// A collection of jobs which can be waited on
+Group :: struct {
+    atomic_counter: u64,
 }
+
+Job :: struct {
+    procedure:       Job_Proc,
+    arg:             rawptr,
+    group:           ^Group,
+    ignored_threads: Ignored_Threads,
+    _next:           ^Job,
+}
+
+Ignored_Threads :: bit_set[0 ..< 64]
 
 Priority :: enum u8 {
     Medium = 0,
@@ -46,6 +53,7 @@ Priority :: enum u8 {
     High,
 }
 
+@(private)
 _state: struct {
     running:        bool,
     job_lists:      [Priority]Job_List,
@@ -53,6 +61,7 @@ _state: struct {
     thread_proc:    Thread_Proc,
     thread_arg:     rawptr,
     thread_counter: int,
+    allocator:      runtime.Allocator,
 }
 
 Job_List :: struct {
@@ -82,19 +91,25 @@ is_running :: proc() -> bool {
     return _state.running
 }
 
-make_job_typed :: proc(group: ^Group, arg: ^$T, p: proc(arg: ^T)) -> Job {
+
+make_job_typed :: proc(
+    group: ^Group,
+    arg: ^$T,
+    p: proc(arg: ^T),
+    ignored_threads: Ignored_Threads = {},
+) -> Job {
     assert(group != nil)
     assert(p != nil)
     return {procedure = cast(proc(a: rawptr))p, arg = rawptr(arg), group = group}
 }
 
-make_job_raw :: proc(group: ^Group, arg: rawptr, p: proc(arg: rawptr)) -> Job {
+make_job_raw :: proc(group: ^Group, arg: rawptr, p: Job_Proc, ignored_threads: Ignored_Threads = {}) -> Job {
     assert(group != nil)
     assert(p != nil)
     return {procedure = p, arg = arg, group = group}
 }
 
-make_job_noarg :: proc(group: ^Group, p: proc(arg: rawptr)) -> Job {
+make_job_noarg :: proc(group: ^Group, p: Job_Proc, ignored_threads: Ignored_Threads = {}) -> Job {
     assert(group != nil)
     assert(p != nil)
     return {procedure = p, group = group}
@@ -147,6 +162,7 @@ dispatch_batches_fixed :: proc(
     batch_size := 1,
     priority: Priority = .Medium,
     p: proc(batch: ^Batch(T)),
+    allocator := context.temp_allocator,
 ) {
     assert(p != nil)
     assert(batch_size > 0)
@@ -158,8 +174,8 @@ dispatch_batches_fixed :: proc(
 
     num_batches := div_ceil(len(data), batch_size)
 
-    jobs := make_slice([]Job, num_batches, context.temp_allocator)
-    batches := make_slice([]Batch(T), num_batches, context.temp_allocator)
+    jobs := make_slice([]Job, num_batches, allocator)
+    batches := make_slice([]Batch(T), num_batches, allocator)
 
     for &batch, i in batches {
         offset := i * batch_size
@@ -182,14 +198,16 @@ dispatch_batches_fixed :: proc(
 }
 
 @(private)
-div_ceil :: proc(a, b: int) -> int {
+div_ceil :: #force_inline proc(a, b: int) -> int {
     return (a + b - 1) / b
 }
 
-dispatch :: proc(priority: Priority = .Medium, jobs: ..Job) {
-    _jobs := make([]Job, len(jobs), context.temp_allocator)
+// Note: it's on you to clean up the memory after the jobs if you use a custom allocator.
+dispatch :: proc(priority: Priority = .Medium, jobs: ..Job, allocator := context.temp_allocator) -> []Job {
+    _jobs := make([]Job, len(jobs), allocator)
     copy(_jobs, jobs)
     dispatch_jobs(priority, _jobs)
+    return _jobs
 }
 
 // Push jobs to the queue for the given priority.
@@ -212,7 +230,7 @@ dispatch_jobs :: proc(priority: Priority, jobs: []Job) {
 // Other queued jobs are executed while waiting.
 wait :: proc(group: ^Group) {
     for !group_is_finished(group) {
-        _run_queued_jobs()
+        try_execute_queued_job()
     }
     group^ = {}
 }
@@ -232,15 +250,15 @@ run_worker_thread :: proc(arg: rawptr) {
     }
 }
 
+// Warning: 
 default_thread_proc :: proc(_: rawptr) {
-    for _state.running {
-        if !_run_queued_jobs() {
-            intrinsics.cpu_relax()
-        }
+    for is_running() {
+        try_execute_queued_job()
     }
 }
 
-_run_queued_jobs :: proc() -> (result: bool) {
+@(optimization_mode = "speed")
+try_execute_queued_job :: proc() -> (result: bool) {
     ORDERED_PRIORITIES :: [len(Priority)]Priority{.High, .Medium, .Low}
 
     block: for priority in ORDERED_PRIORITIES {
@@ -271,20 +289,17 @@ _run_queued_jobs :: proc() -> (result: bool) {
 // Spawns all threads.
 initialize :: proc(
     num_worker_threads := -1,
-    set_thread_affinity := false,
     thread_proc := default_thread_proc,
     thread_arg: rawptr = nil,
     create_suspended_threads := false,
+    allocator := context.allocator,
 ) {
-    if set_thread_affinity {
-        _set_thread_affinity(_current_thread(), 1)
-    }
-
     _state = {
         thread_proc    = thread_proc,
         thread_arg     = thread_arg,
         thread_counter = 1,
         running        = true,
+        allocator      = allocator,
     }
 
     // Main thread TLS
@@ -294,19 +309,17 @@ initialize :: proc(
 
     // Worker threads
     {
-        num_hw_threads := _get_num_hardware_threads()
+        // Note: more than 64 threads need special handling on windows.
+        // TODO
+        num_hw_threads := min(64, _get_num_hardware_threads())
         num_threads := num_worker_threads < 0 ? (num_hw_threads - 1) : num_worker_threads
 
         if num_threads > 0 {
-            _state.threads = make([]Thread_Handle, num_threads)
+            _state.threads = make([]Thread_Handle, num_threads, _state.allocator)
 
             for i in 0 ..< num_threads {
                 thread := _create_worker_thread(nil, create_suspended_threads)
                 _state.threads[i] = thread
-
-                if set_thread_affinity {
-                    _set_thread_affinity(thread, 1 << uint((i + 1) %% num_hw_threads))
-                }
             }
         }
     }
@@ -318,5 +331,5 @@ shutdown :: proc() {
     if len(_state.threads) > 0 {
         _wait_for_threads_to_finish(_state.threads[:])
     }
-    delete(_state.threads)
+    delete(_state.threads, _state.allocator)
 }

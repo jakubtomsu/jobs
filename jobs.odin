@@ -268,6 +268,10 @@ try_execute_queued_job :: proc() -> (result: bool) {
 
         if sync.atomic_mutex_try_lock(&_state.job_lists[priority].mutex) {
             if job := _state.job_lists[priority].head; job != nil {
+                if _thread_state.index in job.ignored_threads {
+                    sync.atomic_mutex_unlock(&_state.job_lists[priority].mutex)
+                    continue
+                }
                 _state.job_lists[priority].head = job._next
                 sync.atomic_mutex_unlock(&_state.job_lists[priority].mutex)
 

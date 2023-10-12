@@ -22,7 +22,7 @@ and OS-provided synchronization primitives like Mutexes and Semaphores.
 ### Notes:
 - the jobs are queued on a linked list (FILO queue)
 - individual jobs are allocated with `context.temp_allocator` (or manually)
-- all jobs have to finish the frame you start them (and before calling `free_all(context.temp_allocator`)!
+- jobs are intended to finish within one frame, but you can make long running tasks with a custom allocator.
 
 ## A simple hello world program
 ```odin
@@ -49,6 +49,8 @@ All examples:
 - [hello](examples/hello/hello.odin) - a very basic introduction to jobs
 - [simple](examples/simple/simple.odin) - simple overview with most of the features
 - [boids](examples/boids/boids.odin) - boids simulation with Raylib
+- [background](examples/background/background.odin) - long-running tasks over multiple frames
+- [efficient_spinning](examples/efficient_spinning/efficient_spinning.odin) - using a custom thread proc to sleep whenever no jobs are available to save power
 
 ![boids](misc/boids.png)
 ![boids](misc/boids_spall.png)

@@ -18,6 +18,7 @@ and OS-provided synchronization primitives like Mutexes and Semaphores.
 - nested jobs
 - utilities for batch processing of slices/arrays
 - full control over the thread processing loop
+- support for windows, linux and drawin
 
 ### Notes:
 - the jobs are queued on a linked list (FILO queue)

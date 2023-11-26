@@ -32,6 +32,8 @@ MAIN_THREAD_INDEX :: 0
 Job_Proc :: #type proc(arg: rawptr)
 Thread_Proc :: #type proc(arg: rawptr)
 
+Thread :: _Thread
+
 // A collection of jobs which can be waited on
 Group :: struct {
     atomic_counter: u64,
@@ -57,7 +59,7 @@ Priority :: enum u8 {
 _state: struct {
     running:        bool,
     job_lists:      [Priority]Job_List,
-    threads:        []Thread_Handle,
+    threads:        []Thread,
     thread_proc:    Thread_Proc,
     thread_arg:     rawptr,
     thread_counter: int,
@@ -83,7 +85,7 @@ current_thread_index :: proc() -> int {
     return _thread_state.index
 }
 
-current_thread_id :: proc() -> u32 {
+current_thread_id :: proc() -> u64 {
     return _current_thread_id()
 }
 
@@ -242,7 +244,7 @@ group_is_finished :: #force_inline proc(group: ^Group) -> bool {
 }
 
 @(private)
-run_worker_thread :: proc(arg: rawptr) {
+run_worker_thread :: proc() {
     _thread_state.index = intrinsics.atomic_add(&_state.thread_counter, 1)
 
     if _state.thread_proc != nil {
@@ -295,7 +297,6 @@ initialize :: proc(
     num_worker_threads := -1,
     thread_proc := default_thread_proc,
     thread_arg: rawptr = nil,
-    create_suspended_threads := false,
     allocator := context.allocator,
 ) {
     _state = {
@@ -319,10 +320,10 @@ initialize :: proc(
         num_threads := num_worker_threads < 0 ? (num_hw_threads - 1) : num_worker_threads
 
         if num_threads > 0 {
-            _state.threads = make([]Thread_Handle, num_threads, _state.allocator)
+            _state.threads = make([]Thread, num_threads, _state.allocator)
 
             for i in 0 ..< num_threads {
-                thread := _create_worker_thread(nil, create_suspended_threads)
+                thread := _create_worker_thread()
                 _state.threads[i] = thread
             }
         }

@@ -1,3 +1,4 @@
+// +build windows
 package jobs
 
 import "core:os"
@@ -31,8 +32,7 @@ foreign kernel32 {
     SetThreadAffinityMask :: proc(hThread: windows.HANDLE, dwThreadAffinityMask: windows.DWORD_PTR) -> windows.DWORD_PTR ---
 }
 
-Thread_Handle :: windows.HANDLE
-Fiber_Handle :: windows.LPVOID
+_Thread :: windows.HANDLE
 
 _get_num_hardware_threads :: proc() -> int {
     info: SYSTEM_INFO
@@ -41,15 +41,8 @@ _get_num_hardware_threads :: proc() -> int {
 }
 
 
-_create_worker_thread :: proc(param: rawptr, suspended: bool) -> Thread_Handle {
-    handle := windows.CreateThread(
-        nil,
-        0,
-        _thread_start_routine,
-        param,
-        suspended ? windows.CREATE_SUSPENDED : 0,
-        nil,
-    )
+_create_worker_thread :: proc() -> _Thread {
+    handle := windows.CreateThread(nil, 0, _thread_start_routine, nil, 0, nil)
 
     if handle == nil {
         panic("Failed to create thread.")
@@ -60,25 +53,16 @@ _create_worker_thread :: proc(param: rawptr, suspended: bool) -> Thread_Handle {
     _thread_start_routine :: proc "stdcall" (param: windows.LPVOID) -> windows.DWORD {
         // HACK
         context = runtime.default_context()
-        run_worker_thread(param)
+        run_worker_thread()
         return 0
     }
 }
 
-_resume_thread :: proc(handle: Thread_Handle) {
-    windows.ResumeThread(handle)
+_current_thread_id :: proc() -> u64 {
+    return u64(windows.GetCurrentThreadId())
 }
 
-// Pseudo-handle!
-_current_thread :: proc() -> Thread_Handle {
-    return windows.GetCurrentThread()
-}
-
-_current_thread_id :: proc() -> u32 {
-    return u32(windows.GetCurrentThreadId())
-}
-
-_wait_for_threads_to_finish :: proc(threads: []Thread_Handle) {
+_wait_for_threads_to_finish :: proc(threads: []Thread) {
     if windows.WaitForMultipleObjects(windows.DWORD(len(threads)), &threads[0], true, windows.INFINITE) ==
        windows.WAIT_FAILED {
         panic("Failed to wait for threads to finish.")

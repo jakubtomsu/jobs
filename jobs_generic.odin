@@ -1,4 +1,4 @@
-// Generic platform backend using core: libs
+// Generic platform backend using 'core:' libs
 
 // +build linux, darwin
 package jobs

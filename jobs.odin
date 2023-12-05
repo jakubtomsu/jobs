@@ -1,5 +1,6 @@
 // Jobs
 // A simple job system for Odin.
+// https://github.com/jakubtomsu/jobs
 //
 // The design is inspired by fiber-based job systems, most notably the one used at Naughty Dog
 // (see https://www.gdcvault.com/play/1022186/Parallelizing-the-Naughty-Dog-Engine)
@@ -81,14 +82,17 @@ num_threads :: proc() -> int {
     return 1 + len(_state.threads)
 }
 
+// Get the index of the current thread, between 0..<num_threads
 current_thread_index :: proc() -> int {
     return _thread_state.index
 }
 
+// Get the current thread ID from the OS
 current_thread_id :: proc() -> u64 {
     return _current_thread_id()
 }
 
+// Check if the job system is running
 is_running :: proc() -> bool {
     return _state.running
 }

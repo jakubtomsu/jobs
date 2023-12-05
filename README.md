@@ -1,6 +1,8 @@
 # Jobs
 A simple job system for Odin.
 
+Latest tested Odin version: `dev-2023-12-nightly:31b1aef4`
+
 ## Overview
 
 The design is inspired by fiber-based job systems, most notably the one used at Naughty Dog.
@@ -18,7 +20,7 @@ and OS-provided synchronization primitives like Mutexes and Semaphores.
 - nested jobs
 - utilities for batch processing of slices/arrays
 - full control over the thread processing loop
-- support for windows, linux and drawin
+- support for Windows, Linux and Drawin
 
 ### Notes:
 - the jobs are queued on a linked list (FILO queue)

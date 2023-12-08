@@ -61,6 +61,8 @@ All examples:
 ## TODO
 - improve the examples (boids are especially wonky)
 - use atomic linked list instead of spinlocks
+- Per-job debug labels
+- Profiler integration (with `core:prof/spall` by default)
 
 ## Contributing
 All contributions are welcome!

@@ -1,5 +1,5 @@
-# Jobs
-A simple job system for Odin.
+# :construction_worker_man: Jobs
+A simple and hackable job system for Odin.
 
 Latest tested Odin version: `dev-2023-12-nightly:31b1aef4`
 

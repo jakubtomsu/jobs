@@ -3,6 +3,13 @@ A simple and hackable job system for Odin.
 
 Latest tested Odin version: `dev-2023-12-nightly:31b1aef4`
 
+> [!NOTE]
+> I've been working on a new version of this job system which is a complete rewrite for my new project.
+> It has many advantages when dealing with batching and the implementation itself is way simpler and more flexible.
+> I just haven't got around to fully polishing it and releasing it here.
+> 
+> The current version will be eventually deprecated but still available on V1 branch.
+
 ## Overview
 
 The design is inspired by fiber-based job systems, most notably the one used at Naughty Dog.

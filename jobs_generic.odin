@@ -1,6 +1,6 @@
 // Generic platform backend using 'core:' libs
 
-// +build linux, darwin
+#+build linux, darwin
 package jobs
 
 import "core:os"

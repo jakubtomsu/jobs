@@ -22,10 +22,10 @@
 // - the individual jobs are allocated with context.temp_allocator (or manually allocated)
 package jobs
 
-import "core:intrinsics"
+import "base:intrinsics"
+import "base:runtime"
 import "core:log"
 import "core:math"
-import "core:runtime"
 import "core:sync"
 
 MAIN_THREAD_INDEX :: 0
@@ -263,7 +263,7 @@ default_thread_proc :: proc(_: rawptr) {
     }
 }
 
-@(optimization_mode = "speed")
+@(optimization_mode = "favor_size")
 try_execute_queued_job :: proc() -> (result: bool) {
     ORDERED_PRIORITIES :: [len(Priority)]Priority{.High, .Medium, .Low}
 

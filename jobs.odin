@@ -24,8 +24,6 @@ package jobs
 
 import "base:intrinsics"
 import "base:runtime"
-import "core:log"
-import "core:math"
 import "core:sync"
 
 MAIN_THREAD_INDEX :: 0
@@ -339,6 +337,9 @@ shutdown :: proc() {
     _state.running = false
     if len(_state.threads) > 0 {
         _wait_for_threads_to_finish(_state.threads[:])
+    }
+    for thread in _state.threads {
+        free(thread)
     }
     delete(_state.threads, _state.allocator)
 }

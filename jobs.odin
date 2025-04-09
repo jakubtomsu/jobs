@@ -24,8 +24,6 @@ package jobs
 
 import "base:intrinsics"
 import "base:runtime"
-import "core:log"
-import "core:math"
 import "core:sync"
 
 MAIN_THREAD_INDEX :: 0
@@ -256,7 +254,7 @@ run_worker_thread :: proc() {
     }
 }
 
-// Warning: 
+// Warning:
 default_thread_proc :: proc(_: rawptr) {
     for is_running() {
         try_execute_queued_job()
@@ -339,6 +337,7 @@ shutdown :: proc() {
     _state.running = false
     if len(_state.threads) > 0 {
         _wait_for_threads_to_finish(_state.threads[:])
+        _destroy_threads(_state.threads[:])
     }
     delete(_state.threads, _state.allocator)
 }

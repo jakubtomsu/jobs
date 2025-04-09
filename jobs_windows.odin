@@ -68,3 +68,9 @@ _wait_for_threads_to_finish :: proc(threads: []Thread) {
         panic("Failed to wait for threads to finish.")
     }
 }
+
+_destroy_threads :: proc(threads: []Thread) {
+    for thread in threads {
+        windows.CloseHandle(thread)
+    }
+}

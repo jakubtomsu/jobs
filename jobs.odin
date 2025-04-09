@@ -254,7 +254,7 @@ run_worker_thread :: proc() {
     }
 }
 
-// Warning: 
+// Warning:
 default_thread_proc :: proc(_: rawptr) {
     for is_running() {
         try_execute_queued_job()
@@ -337,9 +337,7 @@ shutdown :: proc() {
     _state.running = false
     if len(_state.threads) > 0 {
         _wait_for_threads_to_finish(_state.threads[:])
-    }
-    for thread in _state.threads {
-        free(thread)
+        _destroy_threads(_state.threads[:])
     }
     delete(_state.threads, _state.allocator)
 }
